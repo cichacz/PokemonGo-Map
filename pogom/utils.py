@@ -131,16 +131,16 @@ def get_args():
     else:
         errors = []
 
-        if (args.username is None):
+        if args.username is None:
             errors.append('Missing `username` either as -u/--username or in config')
 
-        if (args.location is None):
+        if args.location is None:
             errors.append('Missing `location` either as -l/--location or in config')
 
-        if (args.password is None):
+        if args.password is None:
             errors.append('Missing `password` either as -p/--password or in config')
 
-        if (args.step_limit is None):
+        if args.step_limit is None:
             errors.append('Missing `step_limit` either as -st/--step-limit or in config')
 
         if args.auth_service is None:
@@ -149,11 +149,14 @@ def get_args():
         num_auths = len(args.auth_service)
         num_usernames = len(args.username)
         num_passwords = len(args.password)
+
         if num_usernames > 1:
-            if num_passwords > 1 and num_usernames != num_passwords:
-                errors.append('The number of provided passwords ({}) must match the username count ({})'.format(num_passwords, num_usernames))
-            if num_auths > 1 and num_usernames != num_auths:
-                errors.append('The number of provided auth ({}) must match the username count ({})'.format(num_auths, num_usernames))
+            if 1 < num_passwords != num_usernames:
+                errors.append('The number of provided passwords ({}) must match the username count ({})'
+                              .format(num_passwords, num_usernames))
+            if 1 < num_auths != num_usernames:
+                errors.append('The number of provided auth ({}) must match the username count ({})'
+                              .format(num_auths, num_usernames))
 
         if len(errors) > 0:
             parser.print_usage()
@@ -171,7 +174,11 @@ def get_args():
 
         # Make the accounts list
         for i, username in enumerate(args.username):
-            args.accounts.append({'username': username, 'password': args.password[i], 'auth_service': args.auth_service[i]})
+            args.accounts.append({
+                'username': username,
+                'password': args.password[i],
+                'auth_service': args.auth_service[i]
+            })
 
     return args
 

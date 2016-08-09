@@ -213,8 +213,9 @@
     <script src="{{ url_for('static', filename='dist/js/app.min.js').lstrip('/') }}"></script>
     <script src="{{ url_for('static', filename='js/vendor/classie.js').lstrip('/') }}"></script>
     <script>
-      var centerLat = {{lat}};
-      var centerLng = {{lng}};
+      var locations = {{locations}};
+      var centerLat = locations[0].lat;
+      var centerLng = locations[0].lng;
     </script>
     <script src="{{ url_for('static', filename='dist/js/map.min.js').lstrip('/') }}"></script>
     <script src="{{ url_for('static', filename='dist/js/stats.min.js').lstrip('/') }}"></script>

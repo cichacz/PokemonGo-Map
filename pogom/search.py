@@ -22,6 +22,8 @@ import time
 import math
 
 from threading import Thread, Lock
+
+import sys
 from queue import Queue, Empty
 
 from pgoapi import PGoApi
@@ -107,66 +109,74 @@ def fake_search_loop():
 
 
 # The main search loop that keeps an eye on the over all process
-def search_overseer_thread(args, new_location_queue, pause_bit, encryption_lib_path):
-
+def search_overseer_thread(args, locations, pause_bit, encryption_lib_path):
     log.info('Search overseer starting')
 
-    search_items_queue = Queue()
     parse_lock = Lock()
 
     # Create a search_worker_thread per account
     log.info('Starting search worker threads')
-    for i, account in enumerate(args.accounts):
-        log.debug('Starting search worker thread %d for user %s', i, account['username'])
+    for i, location in enumerate(locations):
+        log.debug('Starting search worker thread %d for location %.4f/%.4f/%.4f',
+                  i, location.lat, location.lng, location.alt)
+
         t = Thread(target=search_worker_thread,
                    name='search_worker_{}'.format(i),
-                   args=(args, account, search_items_queue, parse_lock,
-                         encryption_lib_path))
+                   args=(args, location, parse_lock, pause_bit, encryption_lib_path))
         t.daemon = True
         t.start()
 
+    # The real work starts here but will halt on pause_bit.set()
+    while True:
+        # Now we just give a little pause here
+        time.sleep(1)
+
+
+def search_worker_thread(args, pogo_worker, parse_lock, pause_bit, encryption_lib_path):
     # A place to track the current location
     current_location = False
 
+    for i, account in enumerate(pogo_worker.accounts):
+        log.debug('Starting search thread %d for user %s', i, account['username'])
+        t = Thread(target=search_thread,
+                   name='search_thread_{}'.format(i),
+                   args=(args, account, pogo_worker, parse_lock, encryption_lib_path))
+        t.daemon = True
+        t.start()
+
     # The real work starts here but will halt on pause_bit.set()
     while True:
-
         # paused; clear queue if needed, otherwise sleep and loop
         if pause_bit.is_set():
-            if not search_items_queue.empty():
+            if not pogo_worker.get_queue().empty():
                 try:
                     while True:
-                        search_items_queue.get_nowait()
+                        pogo_worker.get_queue().get_nowait()
                 except Empty:
                     pass
             time.sleep(1)
             continue
 
         # If a new location has been passed to us, get the most recent one
-        if not new_location_queue.empty():
+        if pogo_worker.changed:
             log.info('New location caught, moving search grid')
-            try:
-                while True:
-                    current_location = new_location_queue.get_nowait()
-            except Empty:
-                pass
+
+            current_location = pogo_worker.get_location()
+            pogo_worker.changed = False
 
             # We (may) need to clear the search_items_queue
-            if not search_items_queue.empty():
-                try:
-                    while True:
-                        search_items_queue.get_nowait()
-                except Empty:
-                    pass
+            if not pogo_worker.get_queue().empty():
+                while not pogo_worker.get_queue().empty():
+                    pogo_worker.get_queue().get_nowait()
 
         # If there are no search_items_queue either the loop has finished (or been
         # cleared above) -- either way, time to fill it back up
-        if search_items_queue.empty():
+        if pogo_worker.get_queue().empty():
             log.debug('Search queue empty, restarting loop')
             for step, step_location in enumerate(generate_location_steps(current_location, args.step_limit), 1):
                 log.debug('Queueing step %d @ %f/%f/%f', step, step_location[0], step_location[1], step_location[2])
                 search_args = (step, step_location)
-                search_items_queue.put(search_args)
+                pogo_worker.get_queue().put(search_args)
         # else:
         #     log.info('Search queue processing, %d items left', search_items_queue.qsize())
 
@@ -174,12 +184,11 @@ def search_overseer_thread(args, new_location_queue, pause_bit, encryption_lib_p
         time.sleep(1)
 
 
-def search_worker_thread(args, account, search_items_queue, parse_lock, encryption_lib_path):
-
+def search_thread(args, account, location, parse_lock, encryption_lib_path):
     # If we have more than one account, stagger the logins such that they occur evenly over scan_delay
-    if len(args.accounts) > 1:
+    if len(location.accounts) > 1:
         delay = (args.scan_delay / len(args.accounts)) * args.accounts.index(account)
-        log.debug('Delaying thread startup for %.2f seconds', delay)
+        log.info('Delaying thread startup for %.2f seconds', delay)
         time.sleep(delay)
 
     log.debug('Search worker thread starting')
@@ -196,9 +205,9 @@ def search_worker_thread(args, account, search_items_queue, parse_lock, encrypti
             while True:
 
                 # Grab the next thing to search (when available)
-                step, step_location = search_items_queue.get()
+                step, step_location = location.get_queue().get()
 
-                log.info('Search step %d beginning (queue size is %d)', step, search_items_queue.qsize())
+                log.info('Search step %d beginning (queue size is %d)', step, location.get_queue().qsize())
 
                 # Let the api know where we intend to be for this loop
                 api.set_position(*step_location)
@@ -206,7 +215,6 @@ def search_worker_thread(args, account, search_items_queue, parse_lock, encrypti
                 # The loop to try very hard to scan this step
                 failed_total = 0
                 while True:
-
                     # After so many attempts, let's get out of here
                     if failed_total >= args.scan_retries:
                         # I am choosing to NOT place this item back in the queue
@@ -231,7 +239,8 @@ def search_worker_thread(args, account, search_items_queue, parse_lock, encrypti
 
                     # G'damnit, nothing back. Mark it up, sleep, carry on
                     if not response_dict:
-                        log.error('Search step %d area download failed, retrying request in %g seconds', step, sleep_time)
+                        log.error('Search step %d area download failed, retrying request in %g seconds',
+                                  step, sleep_time)
                         failed_total += 1
                         time.sleep(sleep_time)
                         continue
@@ -241,10 +250,11 @@ def search_worker_thread(args, account, search_items_queue, parse_lock, encrypti
                         try:
                             parse_map(response_dict, step_location)
                             log.debug('Search step %s completed', step)
-                            search_items_queue.task_done()
+                            location.get_queue().task_done()
                             break  # All done, get out of the request-retry loop
                         except KeyError:
-                            log.exception('Search step %s map parsing failed, retrying request in %g seconds', step, sleep_time)
+                            log.exception('Search step %s map parsing failed, retrying request in %g seconds',
+                                          step, sleep_time)
                             failed_total += 1
                             time.sleep(sleep_time)
 
@@ -256,7 +266,6 @@ def search_worker_thread(args, account, search_items_queue, parse_lock, encrypti
 
 
 def check_login(args, account, api, position):
-
     # Logged in? Enough time left? Cool!
     if api._auth_provider and api._auth_provider._ticket_expire:
         remaining_time = api._auth_provider._ticket_expire / 1000 - time.time()

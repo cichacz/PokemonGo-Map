@@ -7,7 +7,6 @@ import shutil
 import logging
 import time
 import re
-import requests
 
 # Currently supported pgoapi
 pgoapi_version = "1.1.7"
@@ -34,6 +33,7 @@ except ImportError:
 
 # Assert pgoapi >= pgoapi_version
 from distutils.version import StrictVersion
+
 if not hasattr(pgoapi, "__version__") or StrictVersion(pgoapi.__version__) < StrictVersion(pgoapi_version):
     log.critical("It seems `pgoapi` is not up-to-date. You must run pip install -r requirements.txt again")
     sys.exit(1)
@@ -48,7 +48,7 @@ from pogom.app import Pogom
 from pogom.utils import get_args, insert_mock_data, get_encryption_lib_path
 
 from pogom.search import search_overseer_thread, fake_search_loop
-from pogom.models import init_database, create_tables, drop_tables, Pokemon, Pokestop, Gym
+from pogom.models import init_database, create_tables, drop_tables, Pokemon, Pokestop, Gym, PogoWorker
 
 from pgoapi import utilities as util
 
@@ -61,15 +61,16 @@ if __name__ == '__main__':
     args = get_args()
 
     if args.debug:
-        log.setLevel(logging.DEBUG);
+        log.setLevel(logging.DEBUG)
     else:
-        log.setLevel(logging.INFO);
+        log.setLevel(logging.INFO)
 
     # Let's not forget to run Grunt / Only needed when running with webserver
     if not args.no_server:
         if not os.path.exists(os.path.join(os.path.dirname(__file__), 'static/dist')):
-            log.critical('Missing front-end assets (static/dist) -- please run "npm install && npm run build" before starting the server');
-            sys.exit();
+            log.critical('Missing front-end assets (static/dist) -- please run '
+                         '"npm install && npm run build" before starting the server')
+            sys.exit()
 
     # These are very noisey, let's shush them up a bit
     logging.getLogger('peewee').setLevel(logging.INFO)
@@ -88,33 +89,33 @@ if __name__ == '__main__':
         logging.getLogger('pgoapi').setLevel(logging.DEBUG)
         logging.getLogger('rpc_api').setLevel(logging.DEBUG)
 
-
     # use lat/lng directly if matches such a pattern
-    prog = re.compile("^(\-?\d+\.\d+),?\s?(\-?\d+\.\d+)$")
-    res = prog.match(args.location)
-    if res:
-        log.debug('Using coordinates from CLI directly')
-        position = (float(res.group(1)), float(res.group(2)), 0)
-    else:
-        log.debug('Looking up coordinates in API')
-        position = util.get_pos_by_name(args.location)
+    prog = re.compile("^(-?\d+\.\d+),?\s?(-?\d+\.\d+)$")
+    parsed_locations = args.location.split("|")
+    locations = []
+    for location in parsed_locations:
+        res = prog.match(location)
+        position = None
+        if res:
+            log.debug('Using coordinates from CLI directly')
+            position = PogoWorker(float(res.group(1)), float(res.group(2)), 0)
+        else:
+            log.debug('Looking up coordinates in API')
+            position = PogoWorker(*util.get_pos_by_name(args.location))
+        locations.append(position)
 
-    # Use the latitude and longitude to get the local altitude from Google
-    try:
-        url = 'https://maps.googleapis.com/maps/api/elevation/json?locations={},{}'.format(
-            str(position[0]), str(position[1]))
-        altitude = requests.get(url).json()[u'results'][0][u'elevation']
-        log.debug('Local altitude is: %sm', altitude)
-        position = (position[0], position[1], altitude)
-    except (requests.exceptions.RequestException, IndexError, KeyError):
-        log.error('Unable to retrieve altitude from Google APIs; setting to 0')
+    # add accounts to locations
+    if len(args.accounts) < len(locations):
+        log.warning('Provided fever accounts than locations. Removing extra locations..')
+        while len(args.accounts) < len(locations):
+            locations.pop()
 
-    if not any(position):
-        log.error('Could not get a position by name, aborting')
+    for i, account in enumerate(args.accounts):
+        locations[i].add_account(account)
+
+    if not locations:
+        log.error('Could not initialize locations, aborting')
         sys.exit()
-
-    log.info('Parsed location is: %.4f/%.4f/%.4f (lat/lng/alt)',
-             position[0], position[1], position[2])
 
     if args.no_pokemon:
         log.info('Parsing of Pokemon disabled')
@@ -136,24 +137,21 @@ if __name__ == '__main__':
             os.remove(args.db)
     create_tables(db)
 
-    app.set_current_location(position);
+    app.set_locations(locations)
 
     # Control the search status (running or not) across threads
     pause_bit = Event()
     pause_bit.clear()
 
-    # Setup the location tracking queue and push the first location on
-    new_location_queue = Queue()
-    new_location_queue.put(position)
-
     if not args.only_server:
         # Gather the pokemons!
         if not args.mock:
             log.debug('Starting a real search thread')
-            search_thread = Thread(target=search_overseer_thread, args=(args, new_location_queue, pause_bit, encryption_lib_path))
+            search_thread = Thread(target=search_overseer_thread,
+                                   args=(args, locations, pause_bit, encryption_lib_path))
         else:
             log.debug('Starting a fake search thread')
-            insert_mock_data(position)
+            insert_mock_data(locations[0])
             search_thread = Thread(target=fake_search_loop)
 
         search_thread.daemon = True
@@ -161,13 +159,12 @@ if __name__ == '__main__':
         search_thread.start()
 
     if args.cors:
-        CORS(app);
+        CORS(app)
 
     # No more stale JS
     init_cache_busting(app)
 
     app.set_search_control(pause_bit)
-    app.set_location_queue(new_location_queue)
 
     config['ROOT_PATH'] = app.root_path
     config['GMAPS_KEY'] = args.gmaps_key

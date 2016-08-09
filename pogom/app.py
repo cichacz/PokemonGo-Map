@@ -43,6 +43,9 @@ class Pogom(Flask):
     def set_current_location(self, location):
         self.current_location = location
 
+    def set_locations(self, locations):
+        self.locations = locations
+
     def get_search_control(self):
         return jsonify({'status': not self.search_control.is_set()})
 
@@ -67,8 +70,7 @@ class Pogom(Flask):
         search_display = "inline" if args.search_control else "none"
 
         return render_template('map.html',
-                               lat=self.current_location[0],
-                               lng=self.current_location[1],
+                               locations=map(lambda x: x.get_location(), self.locations),
                                gmaps_key=config['GMAPS_KEY'],
                                lang=config['LOCALE'],
                                is_fixed=fixed_display,

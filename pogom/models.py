@@ -3,6 +3,10 @@
 
 import logging
 import calendar
+import requests
+
+from Queue import Queue
+
 from peewee import SqliteDatabase, InsertQuery, \
     IntegerField, CharField, DoubleField, BooleanField, \
     DateTimeField, fn
@@ -288,6 +292,44 @@ class ScannedLocation(BaseModel):
             scans.append(s)
 
         return scans
+
+
+class PogoWorker(object):
+
+    def __init__(self, lat, lng, alt=0):
+        # Use the latitude and longitude to get the local altitude from Google
+        if alt == 0:
+            url = 'https://maps.googleapis.com/maps/api/elevation/json?locations={},{}'.format(
+                str(lat), str(lng))
+
+            try:
+                altitude = requests.get(url).json()[u'results'][0][u'elevation']
+                log.debug('Local altitude is: %sm', altitude)
+                alt = altitude
+            except (requests.exceptions.RequestException, IndexError, KeyError):
+                log.error('Unable to retrieve altitude from Google APIs; setting to 0')
+
+        self.lat = lat
+        self.lng = lng
+        self.alt = alt
+
+        self.changed = True
+
+        self.accounts = []
+        self.__queue = Queue()
+
+        log.info('Parsed location is: %.4f/%.4f/%.4f (lat/lng/alt)',
+                 self.lat, self.lng, self.alt)
+
+    def get_location(self):
+        return [self.lat, self.lng, self.alt]
+
+    def get_queue(self):
+        return self.__queue
+
+    def add_account(self, account):
+        if 'username' in account and 'password' in account and 'auth_service' in account:
+            self.accounts.append(account)
 
 
 def parse_map(map_dict, step_location):
