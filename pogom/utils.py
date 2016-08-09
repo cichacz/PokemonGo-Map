@@ -307,7 +307,7 @@ def get_encryption_lib_path():
         lib_name = "libencrypt-linux-arm-32.so"
 
     elif os.uname()[4].startswith("aarch64") and platform.architecture()[0] == '64bit':
-        lib_path = os.path.join(os.path.dirname(__file__), "libencrypt-linux-arm-64.so")
+        lib_name = "libencrypt-linux-arm-64.so"
 
     elif sys.platform.startswith('linux'):
         if "centos" in platform.platform():
