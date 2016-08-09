@@ -161,7 +161,8 @@ def search_worker_thread(args, pogo_worker, parse_lock, pause_bit, encryption_li
         if pogo_worker.changed:
             log.info('New location caught, moving search grid')
 
-            current_location = pogo_worker.get_location()
+            current_location = pogo_worker.get_location().values()
+            log.info(current_location)
             pogo_worker.changed = False
 
             # We (may) need to clear the search_items_queue

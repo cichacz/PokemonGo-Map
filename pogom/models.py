@@ -322,7 +322,11 @@ class PogoWorker(object):
                  self.lat, self.lng, self.alt)
 
     def get_location(self):
-        return [self.lat, self.lng, self.alt]
+        return {
+            'lat': self.lat,
+            'lng': self.lng,
+            'alt': self.alt
+        }
 
     def get_queue(self):
         return self.__queue
