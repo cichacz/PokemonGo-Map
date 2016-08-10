@@ -8,6 +8,20 @@ import logging
 import time
 import re
 
+from distutils.version import StrictVersion
+
+from threading import Thread, Event
+from queue import Queue
+from flask_cors import CORS
+from flask_cache_bust import init_cache_busting
+
+from pogom import config
+from pogom.app import Pogom
+from pogom.utils import get_args, insert_mock_data, get_encryption_lib_path
+
+from pogom.search import search_overseer_thread, fake_search_loop
+from pogom.models import init_database, create_tables, drop_tables
+
 # Currently supported pgoapi
 pgoapi_version = "1.1.7"
 
@@ -27,30 +41,15 @@ if os.path.isdir(oldpgoapiPath):
 # Assert pgoapi is installed
 try:
     import pgoapi
+    from pgoapi import utilities as util
 except ImportError:
     log.critical("It seems `pgoapi` is not installed. You must run pip install -r requirements.txt again")
     sys.exit(1)
 
 # Assert pgoapi >= pgoapi_version
-from distutils.version import StrictVersion
-
 if not hasattr(pgoapi, "__version__") or StrictVersion(pgoapi.__version__) < StrictVersion(pgoapi_version):
     log.critical("It seems `pgoapi` is not up-to-date. You must run pip install -r requirements.txt again")
     sys.exit(1)
-
-from threading import Thread, Event
-from queue import Queue
-from flask_cors import CORS
-from flask_cache_bust import init_cache_busting
-
-from pogom import config
-from pogom.app import Pogom
-from pogom.utils import get_args, insert_mock_data, get_encryption_lib_path
-
-from pogom.search import search_overseer_thread, fake_search_loop
-from pogom.models import init_database, create_tables, drop_tables, Pokemon, Pokestop, Gym, PogoWorker
-
-from pgoapi import utilities as util
 
 if __name__ == '__main__':
     # Check if we have the proper encryption library file and get its path
@@ -68,8 +67,7 @@ if __name__ == '__main__':
     # Let's not forget to run Grunt / Only needed when running with webserver
     if not args.no_server:
         if not os.path.exists(os.path.join(os.path.dirname(__file__), 'static/dist')):
-            log.critical('Missing front-end assets (static/dist) -- please run '
-                         '"npm install && npm run build" before starting the server')
+            log.critical('Missing front-end assets (static/dist) -- please run "npm install && npm run build" before starting the server')
             sys.exit()
 
     # These are very noisey, let's shush them up a bit

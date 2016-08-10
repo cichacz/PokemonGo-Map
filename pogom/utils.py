@@ -131,24 +131,30 @@ def get_args():
     else:
         errors = []
 
+        num_auths = 1
+        num_usernames = 0
+        num_passwords = 0
+
         if args.username is None:
             errors.append('Missing `username` either as -u/--username or in config')
+        else:
+            num_usernames = len(args.username)
 
         if args.location is None:
             errors.append('Missing `location` either as -l/--location or in config')
 
         if args.password is None:
             errors.append('Missing `password` either as -p/--password or in config')
+        else:
+            num_passwords = len(args.password)
 
         if args.step_limit is None:
             errors.append('Missing `step_limit` either as -st/--step-limit or in config')
 
         if args.auth_service is None:
             args.auth_service = ['ptc']
-
-        num_auths = len(args.auth_service)
-        num_usernames = len(args.username)
-        num_passwords = len(args.password)
+        else:
+            num_auths = len(args.auth_service)
 
         if num_usernames > 1:
             if 1 < num_passwords != num_usernames:
