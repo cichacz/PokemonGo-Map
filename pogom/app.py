@@ -37,9 +37,6 @@ class Pogom(Flask):
     def set_search_control(self, control):
         self.search_control = control
 
-    def set_current_location(self, location):
-        self.current_location = location
-
     def set_locations(self, locations):
         self.locations = locations
 
@@ -110,9 +107,10 @@ class Pogom(Flask):
         return jsonify(d)
 
     def loc(self):
-        d = {}
-        d['lat'] = self.current_location[0]
-        d['lng'] = self.current_location[1]
+        d = {
+            'lat': self.locations[0].lat,
+            'lng': self.locations[0].lng
+        }
 
         return jsonify(d)
 
@@ -120,11 +118,15 @@ class Pogom(Flask):
         args = get_args()
         if args.fixed_location:
             return 'Location changes are turned off', 403
+
+        idx = 0
+
         # part of query string
         if request.args:
             lat = request.args.get('lat', type=float)
             lon = request.args.get('lon', type=float)
             idx = request.args.get('idx', type=int)
+
         # from post requests
         if request.form:
             lat = request.form.get('lat', type=float)
@@ -145,8 +147,8 @@ class Pogom(Flask):
         pokemon_list = []
 
         # Allow client to specify location
-        lat = request.args.get('lat', self.current_location[0], type=float)
-        lon = request.args.get('lon', self.current_location[1], type=float)
+        lat = request.args.get('lat', self.locations[0].lat, type=float)
+        lon = request.args.get('lon', self.locations[0].lng, type=float)
         origin_point = LatLng.from_degrees(lat, lon)
 
         for pokemon in Pokemon.get_active(None, None, None, None):
@@ -217,8 +219,8 @@ class Pogom(Flask):
 
     def get_stats(self):
         return render_template('statistics.html',
-                               lat=self.current_location[0],
-                               lng=self.current_location[1],
+                               lat=self.locations[0].lat,
+                               lng=self.locations[0].lng,
                                gmaps_key=config['GMAPS_KEY'],
                                valid_input=self.get_valid_stat_input()
                                )

@@ -448,6 +448,13 @@ function updateDetails () {
         radius: 50
       })
       heatmapNumPoints = heatmapPoints.length
+
+      //fit map to show all markers
+      var bounds = new google.maps.LatLngBounds();
+      $.each(heatmapPoints, function(idx, item) {
+        bounds.extend(item);
+      });
+      map.fitBounds(bounds);
     }
   })
 }
