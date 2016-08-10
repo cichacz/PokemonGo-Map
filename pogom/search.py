@@ -271,7 +271,7 @@ def search_worker_thread(args, account, location, parse_lock, encryption_lib_pat
 
         # catch any process exceptions, log them, and continue the thread
         except Exception as e:
-            log.exception('Exception in search_worker: %s', e)
+            log.exception('Exception in search_worker: %s. Username: %s', e, account['username'])
 
 
 def check_login(args, account, api, position):
