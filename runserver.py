@@ -20,7 +20,7 @@ from pogom.app import Pogom
 from pogom.utils import get_args, insert_mock_data, get_encryption_lib_path
 
 from pogom.search import search_overseer_thread, fake_search_loop
-from pogom.models import init_database, create_tables, drop_tables
+from pogom.models import init_database, create_tables, drop_tables, PogoWorker
 
 # Currently supported pgoapi
 pgoapi_version = "1.1.7"
