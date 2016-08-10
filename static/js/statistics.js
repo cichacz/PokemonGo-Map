@@ -455,6 +455,14 @@ function updateDetails () {
         bounds.extend(item);
       });
       map.fitBounds(bounds);
+
+      //don't zoom to close
+      var notTooClose = google.maps.event.addListener(map, "idle", function() {
+        if (map.getZoom() > 12) {
+          map.setZoom(12);
+        }
+        google.maps.event.removeListener(notTooClose);
+      });
     }
   })
 }
