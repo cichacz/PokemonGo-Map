@@ -139,7 +139,7 @@ def pogo_worker_thread(idx, args, pogo_worker, parse_lock, pause_bit, encryption
     for i, account in enumerate(pogo_worker.accounts):
         log.debug('Starting search worker thread %d for user %s', i, account['username'])
         t = Thread(target=search_worker_thread,
-                   name='search_worker_{}_{}'.format(idx, i),
+                   name='worker_{}_{}'.format(idx, i),
                    args=(args, account, pogo_worker, parse_lock, encryption_lib_path))
         t.daemon = True
         t.start()
