@@ -869,9 +869,15 @@ function initMap () { // eslint-disable-line no-unused-vars
   map.setMapTypeId(Store.get('map_style'))
   google.maps.event.addListener(map, 'idle', updateMap)
 
-  for idx in locations {
-    markers.push(createSearchMarker(idx));
+  var bounds = new google.maps.LatLngBounds();
+
+  for (var idx in locations) {
+    var marker = createSearchMarker(idx, locations[idx]);
+    bounds.extend(marker.getPosition());
+    markers.push(marker);
   }
+
+  map.fitBounds(bounds);
 
   addMyLocationButton()
   initSidebar()
@@ -885,11 +891,11 @@ function initMap () { // eslint-disable-line no-unused-vars
   })
 }
 
-function createSearchMarker (idx) {
+function createSearchMarker (idx, location) {
   var marker = new google.maps.Marker({ // need to keep reference.
     position: {
-      lat: centerLat,
-      lng: centerLng
+      lat: location.lat,
+      lng: location.lng
     },
     map: map,
     animation: google.maps.Animation.DROP,

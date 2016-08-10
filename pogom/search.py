@@ -117,12 +117,12 @@ def search_overseer_thread(args, locations, pause_bit, encryption_lib_path):
     # Create a search_worker_thread per account
     log.info('Starting search worker threads')
     for i, location in enumerate(locations):
-        log.debug('Starting search worker thread %d for location %.4f/%.4f/%.4f',
+        log.debug('Starting PogoWorker thread %d for location %.4f/%.4f/%.4f',
                   i, location.lat, location.lng, location.alt)
 
-        t = Thread(target=search_worker_thread,
-                   name='search_worker_{}'.format(i),
-                   args=(args, location, parse_lock, pause_bit, encryption_lib_path))
+        t = Thread(target=pogo_worker_thread,
+                   name='PogoWorker_{}'.format(i),
+                   args=(i, args, location, parse_lock, pause_bit, encryption_lib_path))
         t.daemon = True
         t.start()
 
@@ -132,14 +132,14 @@ def search_overseer_thread(args, locations, pause_bit, encryption_lib_path):
         time.sleep(1)
 
 
-def search_worker_thread(args, pogo_worker, parse_lock, pause_bit, encryption_lib_path):
+def pogo_worker_thread(idx, args, pogo_worker, parse_lock, pause_bit, encryption_lib_path):
     # A place to track the current location
     current_location = False
 
     for i, account in enumerate(pogo_worker.accounts):
-        log.debug('Starting search thread %d for user %s', i, account['username'])
-        t = Thread(target=search_thread,
-                   name='search_thread_{}'.format(i),
+        log.debug('Starting search worker thread %d for user %s', i, account['username'])
+        t = Thread(target=search_worker_thread,
+                   name='search_worker_{}_{}'.format(idx, i),
                    args=(args, account, pogo_worker, parse_lock, encryption_lib_path))
         t.daemon = True
         t.start()
@@ -162,7 +162,6 @@ def search_worker_thread(args, pogo_worker, parse_lock, pause_bit, encryption_li
             log.info('New location caught, moving search grid')
 
             current_location = pogo_worker.get_location().values()
-            log.info(current_location)
             pogo_worker.changed = False
 
             # We (may) need to clear the search_items_queue
@@ -185,7 +184,7 @@ def search_worker_thread(args, pogo_worker, parse_lock, pause_bit, encryption_li
         time.sleep(1)
 
 
-def search_thread(args, account, location, parse_lock, encryption_lib_path):
+def search_worker_thread(args, account, location, parse_lock, encryption_lib_path):
     # If we have more than one account, stagger the logins such that they occur evenly over scan_delay
     if len(location.accounts) > 1:
         delay = (args.scan_delay / len(args.accounts)) * args.accounts.index(account)
