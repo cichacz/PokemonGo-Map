@@ -297,23 +297,7 @@ class ScannedLocation(BaseModel):
 class PogoWorker(object):
 
     def __init__(self, lat, lng, alt=0):
-        # Use the latitude and longitude to get the local altitude from Google
-        if alt == 0:
-            url = 'https://maps.googleapis.com/maps/api/elevation/json?locations={},{}'.format(
-                str(lat), str(lng))
-
-            try:
-                altitude = requests.get(url).json()[u'results'][0][u'elevation']
-                log.debug('Local altitude is: %sm', altitude)
-                alt = altitude
-            except (requests.exceptions.RequestException, IndexError, KeyError):
-                log.error('Unable to retrieve altitude from Google APIs; setting to 0')
-
-        self.lat = lat
-        self.lng = lng
-        self.alt = alt
-
-        self.changed = True
+        self.set_location(lat, lng, alt)
 
         self.accounts = []
         self.__queue = Queue()
@@ -334,6 +318,25 @@ class PogoWorker(object):
     def add_account(self, account):
         if 'username' in account and 'password' in account and 'auth_service' in account:
             self.accounts.append(account)
+
+    def set_location(self, lat, lng, alt=0):
+        # Use the latitude and longitude to get the local altitude from Google
+        if alt == 0:
+            url = 'https://maps.googleapis.com/maps/api/elevation/json?locations={},{}'.format(
+                str(lat), str(lng))
+
+            try:
+                altitude = requests.get(url).json()[u'results'][0][u'elevation']
+                log.debug('Local altitude is: %sm', altitude)
+                alt = altitude
+            except (requests.exceptions.RequestException, IndexError, KeyError):
+                log.error('Unable to retrieve altitude from Google APIs; setting to 0')
+
+        self.lat = lat
+        self.lng = lng
+        self.alt = alt
+
+        self.changed = True
 
 
 def parse_map(map_dict, step_location):

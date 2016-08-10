@@ -11,7 +11,6 @@ import re
 from distutils.version import StrictVersion
 
 from threading import Thread, Event
-from queue import Queue
 from flask_cors import CORS
 from flask_cache_bust import init_cache_busting
 

@@ -23,7 +23,7 @@ var notifiedRarity = []
 var map
 var rawDataIsLoading = false
 var locationMarker
-var marker
+var markers = []
 
 var noLabelsStyle = [{
   featureType: 'poi',
@@ -869,7 +869,9 @@ function initMap () { // eslint-disable-line no-unused-vars
   map.setMapTypeId(Store.get('map_style'))
   google.maps.event.addListener(map, 'idle', updateMap)
 
-  marker = createSearchMarker()
+  for idx in locations {
+    markers.push(createSearchMarker(idx));
+  }
 
   addMyLocationButton()
   initSidebar()
@@ -883,7 +885,7 @@ function initMap () { // eslint-disable-line no-unused-vars
   })
 }
 
-function createSearchMarker () {
+function createSearchMarker (idx) {
   var marker = new google.maps.Marker({ // need to keep reference.
     position: {
       lat: centerLat,
@@ -892,7 +894,8 @@ function createSearchMarker () {
     map: map,
     animation: google.maps.Animation.DROP,
     draggable: true,
-    zIndex: google.maps.Marker.MAX_ZINDEX + 1
+    zIndex: google.maps.Marker.MAX_ZINDEX + 1,
+    workerIdx: idx
   })
 
   var oldLocation = null
@@ -902,7 +905,7 @@ function createSearchMarker () {
 
   google.maps.event.addListener(marker, 'dragend', function () {
     var newLocation = marker.getPosition()
-    changeSearchLocation(newLocation.lat(), newLocation.lng())
+    changeSearchLocation(newLocation.lat(), newLocation.lng(), marker.workerIdx)
       .done(function () {
         oldLocation = null
       })
@@ -1693,14 +1696,14 @@ function addMyLocationButton () {
 
 function changeLocation (lat, lng) {
   var loc = new google.maps.LatLng(lat, lng)
-  changeSearchLocation(lat, lng).done(function () {
+  changeSearchLocation(lat, lng, 0).done(function () {
     map.setCenter(loc)
-    marker.setPosition(loc)
+    markers[0].setPosition(loc)
   })
 }
 
-function changeSearchLocation (lat, lng) {
-  return $.post('next_loc?lat=' + lat + '&lon=' + lng, {})
+function changeSearchLocation (lat, lng, idx) {
+  return $.post('next_loc?lat=' + lat + '&lon=' + lng + '&idx=' + idx, {})
 }
 
 function centerMap (lat, lng, zoom) {

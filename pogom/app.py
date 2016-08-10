@@ -37,9 +37,6 @@ class Pogom(Flask):
     def set_search_control(self, control):
         self.search_control = control
 
-    def set_location_queue(self, queue):
-        self.location_queue = queue
-
     def set_current_location(self, location):
         self.current_location = location
 
@@ -127,18 +124,19 @@ class Pogom(Flask):
         if request.args:
             lat = request.args.get('lat', type=float)
             lon = request.args.get('lon', type=float)
+            idx = request.args.get('idx', type=int)
         # from post requests
         if request.form:
             lat = request.form.get('lat', type=float)
             lon = request.form.get('lon', type=float)
+            idx = request.form.get('idx', type=int)
 
         if not (lat and lon):
             log.warning('Invalid next location: %s,%s', lat, lon)
             return 'bad parameters', 400
         else:
-            self.location_queue.put((lat, lon, 0))
-            self.set_current_location((lat, lon, 0))
-            log.info('Changing next location: %s,%s', lat, lon)
+            self.locations[idx].set_location(lat,lon)
+            log.info('Changing next location: %s,%s, for marker: %d', lat, lon, idx)
             return 'ok'
 
     def list_pokemon(self):
