@@ -458,8 +458,8 @@ function updateDetails () {
 
       //don't zoom to close
       var notTooClose = google.maps.event.addListener(map, "idle", function() {
-        if (map.getZoom() > 12) {
-          map.setZoom(12);
+        if (map.getZoom() > 16) {
+          map.setZoom(16);
         }
         google.maps.event.removeListener(notTooClose);
       });
