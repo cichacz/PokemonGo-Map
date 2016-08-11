@@ -200,6 +200,8 @@ def search_worker_thread(args, account, location, parse_lock, encryption_lib_pat
 
             # Create the API instance this will use
             api = PGoApi()
+            if args.proxy:
+                api.set_proxy({'http': args.proxy, 'https': args.proxy})
 
             # Get current time
             loop_start_time = int(round(time.time() * 1000))
